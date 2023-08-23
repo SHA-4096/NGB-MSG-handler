@@ -8,13 +8,35 @@ import (
 )
 
 type ConfigStruct struct {
-	LogConfig logConfigStruct `yaml:"LogConfig"`
+	LogConfig  logConfigStruct  `yaml:"LogConfig"`
+	AMQPConfig AMQPConfigStruct `yaml:"AMQPConfig"`
+	Database   DatabaseStruct   `yaml:"Database"`
 }
 
 type logConfigStruct struct {
 	LogPath    string `yaml:"logPath"`
 	RotateTime int    `yaml:"rotateTime"`
 	MaxAge     int    `yaml:"maxAge"`
+}
+
+type AMQPConfigStruct struct {
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+}
+
+type DatabaseStruct struct {
+	Mysql MysqlStruct `yaml:"Mysql"`
+}
+
+type MysqlStruct struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	DbName   string `yaml:"dbName"`
+	Timeout  string `yaml:"timeout"`
 }
 
 var Config *ConfigStruct

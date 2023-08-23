@@ -1,29 +1,35 @@
 package middleware
 
 import (
+	config "NGB-MSG-handler/internal/conf"
+	"NGB-MSG-handler/internal/model"
 	"NGB-MSG-handler/internal/util"
-	"context"
+	"encoding/json"
 	"fmt"
-	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-var senderChannel *amqp.Channel
+var receiverChannel *amqp.Channel
+var msgs <-chan amqp.Delivery
 
-func init() {
+func RabbitMQInit() {
 	//establish connection
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	dialStr := fmt.Sprintf("amqp://%s:%s@%s:%s", config.Config.AMQPConfig.User,
+		config.Config.AMQPConfig.Password,
+		config.Config.AMQPConfig.Host,
+		config.Config.AMQPConfig.Port)
+	conn, err := amqp.Dial(dialStr)
 	if err != nil {
 		util.MakeInfoLog("Failed to connect to RabbitMQ")
 	}
 	//create channel
-	senderChannel, err = conn.Channel()
+	receiverChannel, err = conn.Channel()
 	if err != nil {
 		util.MakeInfoLog("[RabbitMQ]Failed to open a channel")
 	}
 	//decleare queue
-	queue, err := senderChannel.QueueDeclare(
+	queue, err := receiverChannel.QueueDeclare(
 		"userActivity",
 		true,
 		false,
@@ -35,25 +41,41 @@ func init() {
 		util.MakeErrorLog("[RabbitMQ]Failed to decleare a queue")
 
 	} else {
-		util.MakeErrorLog(fmt.Sprintf("[RabbitMQ]Queue %s Decleared", queue.Name))
+		util.MakeInfoLog(fmt.Sprintf("[RabbitMQ]Queue %s Decleared", queue.Name))
 	}
+	ReceiveByteFromQueue()
 }
 
-func SendByteToQueue(databyte []byte) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err := senderChannel.PublishWithContext(ctx,
-		"",             // exchange
-		"userActivity", // routing key
-		false,          // mandatory
-		false,          // immediate
-		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        databyte,
-		})
+func ReceiveByteFromQueue() {
+	var err error
+	msgs, err = receiverChannel.Consume(
+		"userActivity",
+		"",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
 	if err != nil {
-		util.MakeInfoLog("[RabbitMQ]Failed to publish a message")
+		util.MakeInfoLog("[RabbitMQ]Failed to consume a message")
 	} else {
-		util.MakeInfoLog("[RabbitMQ]Message sent")
+		util.MakeInfoLog("[RabbitMQ]Start to receive message")
 	}
+	go messageStoragePersistent()
+}
+
+func messageStoragePersistent() {
+	util.MakeInfoLog("[Storage]Starting to store message into database")
+	var msgUnmarshaled model.Message
+	for msgIterator := range msgs {
+		err := json.Unmarshal(msgIterator.Body, &msgUnmarshaled)
+		if err != nil {
+			util.MakeErrorLog("[storage]failed to unmarshal a message")
+			continue
+		}
+		model.CreateMessage(msgUnmarshaled.ContentType, msgUnmarshaled.Body, msgUnmarshaled.TargetUid)
+		util.MakeInfoLog("[Storage]message saved")
+	}
+
 }
