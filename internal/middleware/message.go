@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"golang.org/x/net/websocket"
 )
 
 var receiverChannel *amqp.Channel
@@ -77,5 +78,23 @@ func messageStoragePersistent() {
 		model.CreateMessage(msgUnmarshaled.ContentType, msgUnmarshaled.Body, msgUnmarshaled.TargetUid)
 		util.MakeInfoLog("[Storage]message saved")
 	}
+
+}
+
+//
+//Run in a goroutine
+//
+func PushingMessageToClient(ws *websocket.Conn, clientUid string) {
+	util.MakeInfoLog("pushing message")
+	msgs, err := model.QueryMessageByUid(clientUid)
+	if err != nil {
+		util.MakeErrorLog("[model]" + err.Error())
+		return
+	}
+	msgMarshaled, err := json.Marshal(&msgs)
+	if err != nil {
+		util.MakeErrorLog("[json marshal]" + err.Error())
+	}
+	ws.Write(msgMarshaled)
 
 }

@@ -14,3 +14,9 @@ func CreateMessage(contentType, body, targetUid string) error {
 	err := db.Create(&newMsg).Error
 	return err
 }
+
+func QueryMessageByUid(Uid string) ([]Message, error) {
+	var msgs []Message
+	err := db.Find(&msgs, "target_uid=?", Uid).Error
+	return msgs, err
+}
